@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Room Control Panel</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .device-card {
+            transition: all 0.3s ease;
+        }
+
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .value-card {
+            background: linear-gradient(45deg, #4b6cb7, #182848);
+            color: white;
+        }
+
+        .value-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        /* Thêm style cho thanh trượt */
+        .form-range {
+            width: 100%;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Style cho thanh trượt trên Chrome/Safari */
+        .form-range::-webkit-slider-thumb {
+            background: #0d6efd;
+            border: 2px solid #fff;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .form-range::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .form-range::-webkit-slider-runnable-track {
+            background: #e9ecef;
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        /* Style cho thanh trượt trên Firefox */
+        .form-range::-moz-range-thumb {
+            background: #0d6efd;
+            border: 2px solid #fff;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .form-range::-moz-range-thumb:hover {
+            transform: scale(1.1);
+        }
+
+        .form-range::-moz-range-track {
+            background: #e9ecef;
+            height: 8px;
+            border-radius: 4px;
+        }
+
+        /* Style cho level display */
+        .level-display {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 0.5rem;
+        }
+
+        /* Style cho labels dưới thanh trượt */
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        /* Style cho disabled state */
+        .form-range:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .form-range:disabled::-webkit-slider-thumb {
+            cursor: not-allowed;
+        }
+
+        .form-range:disabled::-moz-range-thumb {
+            cursor: not-allowed;
+        }
+
+        /* Style cho card title */
+        .device-card .card-title {
+            margin-bottom: 1.5rem;
+            color: #495057;
+            font-weight: 500;
+        }
+
+        /* Thêm animation cho các thay đổi giá trị */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .value-update {
+            animation: pulse 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Kiểm tra đăng nhập ngay khi load trang
+        if (!localStorage.getItem('userId')) {
+            window.location.href = 'login.html';
+        }
+    </script>
+
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Smart Room Control Panel</h1>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <span id="userInfo" class="me-3"></span>
+                <!-- Các nút quản lý -->
+                <a href="devices.html" class="btn btn-outline-primary me-2">Manage Devices</a>
+                <a href="user-management.html" class="btn btn-outline-primary me-2" id="userManageBtn" style="display: none;">Manage Users</a>
+                <a href="room-management.html" class="btn btn-outline-primary me-2" id="roomManageBtn" style="display: none;">Manage Rooms</a>
+                <button id="logoutBtn" class="btn btn-outline-danger">Logout</button>
+            </div>
+        </div>
+        
+        <script>
+            // Thêm đoạn code kiểm tra role và hiển thị nút quản lý user
+            if (localStorage.getItem('userRole') === 'admin') {
+                document.getElementById('userManageBtn').style.display = 'inline-block';
+            }
+        </script>
+
+        <div class="row mb-4">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Select Room</h5>
+                        <select id="roomSelector" class="form-select">
+                            <!-- Options will be added here by JavaScript -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sensor Values -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card value-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Temperature</h5>
+                        <h2 id="temp">--°C</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card value-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Humidity</h5>
+                        <h2 id="humid">--%</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card value-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Light Level</h5>
+                        <h2 id="light">--</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Controls -->
+        <div class="row mb-4" id="deviceControls">
+            <!-- Devices will be loaded dynamically here -->
+        </div>
+
+        <!-- Chart -->
+        <div class="card chart-container">
+            <div class="card-body">
+                <canvas id="sensorChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBkK6-57rXAPSyUBZ3Ug-9E6o2XlJyxMes",
+            authDomain: "iot-smart-home-a9896.firebaseapp.com",
+            databaseURL: "https://iot-smart-home-a9896-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "iot-smart-home-a9896",
+            storageBucket: "iot-smart-home-a9896.firebasestorage.app",
+            messagingSenderId: "282792013922",
+            appId: "1:282792013922:web:619668c4c6412d02cae13b"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Sửa lại hàm checkAuth
+        function checkAuth() {
+            const userId = localStorage.getItem('userId');
+            if (!userId) {
+                window.location.href = 'login.html';  // Thay đổi từ '/login' thành 'login.html'
+                return false;
+            }
+            return true;
+        }
+
+        // Sửa lại event listener cho nút logout
+        document.getElementById('logoutBtn').onclick = () => {
+            localStorage.clear();
+            window.location.href = 'login.html';  // Thay đổi từ '/login' thành 'login.html'
+        };
+
+        // Gọi hàm kiểm tra khi trang load
+        if (!checkAuth()) {
+            window.location.href = '/login';
+        }
+
+        // Load available rooms
+        async function loadRooms() {
+            const userId = localStorage.getItem('userId');
+            const userRef = firebase.database().ref(`users/${userId}`);
+            const roomSelector = document.getElementById('roomSelector');
+            
+            try {
+                const snapshot = await userRef.once('value');
+                const userData = snapshot.val();
+                const userRooms = userData.rooms || {};
+                
+                roomSelector.innerHTML = '';
+                for (const roomId in userRooms) {
+                    const roomRef = firebase.database().ref(`rooms/${roomId}`);
+                    const roomSnapshot = await roomRef.once('value');
+                    const roomData = roomSnapshot.val();
+                    
+                    const option = document.createElement('option');
+                    option.value = roomId;
+                    option.textContent = roomData.name;
+                    roomSelector.appendChild(option);
+                }
+                
+                if (roomSelector.value) {
+                    loadRoomData(roomSelector.value);
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+
+        // Khai báo biến để lưu phòng hiện tại
+        let currentRoom = null;
+
+        // Sửa lại hàm loadRoomData
+
+        function loadRoomData(roomId) {
+            if (currentRoom) {
+                db.ref(`/rooms/${currentRoom}/sensors`).off();
+                db.ref(`/rooms/${currentRoom}/controls`).off();
+            }
+            
+            currentRoom = roomId;
+            
+            // Load sensors
+            db.ref(`/rooms/${roomId}/sensors`).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // Hiển thị NULL nếu giá trị là null
+                    document.getElementById('temp').textContent = 
+                        data.temperature !== null ? `${data.temperature?.toFixed(1)}°C` : 'NULL';
+                    document.getElementById('humid').textContent = 
+                        data.humidity !== null ? `${data.humidity?.toFixed(1)}%` : 'NULL';
+                    document.getElementById('light').textContent = 
+                        data.light !== null ? data.light : 'NULL';
+                        
+                    // Chỉ cập nhật biểu đồ khi có giá trị hợp lệ
+                    if (data.temperature !== null && data.humidity !== null && data.light !== null) {
+                        updateChart(data);
+                    }
+                }
+            });
+
+            // Load devices and controls
+            const deviceControls = document.getElementById('deviceControls');
+            deviceControls.innerHTML = ''; // Clear existing devices
+            
+            db.ref(`/rooms/${roomId}/devices`).on('value', (snapshot) => {
+                const devices = snapshot.val() || {};
+                
+                // Clear and recreate device controls
+                deviceControls.innerHTML = '';
+                
+                // Add devices
+                Object.entries(devices).forEach(([deviceId, deviceData]) => {
+                    const deviceCard = createDeviceCard(deviceId, deviceData);
+                    deviceControls.appendChild(deviceCard);
+                    
+                    // Add slider event listener if device is connected
+                    if (deviceData.pin !== undefined) {
+                        const slider = deviceCard.querySelector(`#${deviceId}Slider`);
+                        if (slider) {
+                            slider.oninput = (e) => updateDeviceLevel(roomId, deviceId, e.target.value);
+                        }
+                    }
+                });
+                
+                // Add auto mode card
+                const autoModeCard = document.createElement('div');
+                autoModeCard.className = 'col-md-4 mb-3';
+                autoModeCard.innerHTML = `
+                    <div class="card device-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Auto Mode</h5>
+                            <button id="autoBtn" class="btn btn-primary w-100">Turn ON</button>
+                        </div>
+                    </div>
+                `;
+                deviceControls.appendChild(autoModeCard);
+                
+                // Reattach auto mode button listener
+                document.getElementById('autoBtn').onclick = toggleAutoMode;
+            });
+
+            // Load and monitor control states
+            db.ref(`/rooms/${roomId}/controls`).on('value', (snapshot) => {
+                const controls = snapshot.val();
+                if (controls) {
+                    updateUIForMode(controls.mode);
+                    if (controls.deviceLevels) {
+                        Object.entries(controls.deviceLevels).forEach(([deviceId, level]) => {
+                            updateSlider(deviceId, level);
+                        });
+                    }
+                }
+            });
+        }
+
+
+        // Thêm event listener cho room selector
+        document.getElementById('roomSelector').onchange = (e) => {
+            loadRoomData(e.target.value);
+        };
+
+        // Initialize
+        if (checkAuth()) {
+            const username = localStorage.getItem('username');
+            document.getElementById('userInfo').textContent = `Welcome, ${username}`;
+            updateNavButtons(); // Thêm dòng này
+            loadRooms();
+        }
+
+        // Initialize Chart
+        const ctx = document.getElementById('sensorChart').getContext('2d');
+        let sensorChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Temperature (°C)',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1
+                }, {
+                    label: 'Humidity (%)',
+                    data: [],
+                    borderColor: 'rgb(54, 162, 235)',
+                    tension: 0.1
+                }, {
+                    label: 'Light Level',
+                    data: [],
+                    borderColor: 'rgb(255, 206, 86)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Update chart function
+        function updateChart(data) {
+            const now = new Date();
+            const timeLabel = now.toLocaleTimeString();
+
+            // Chỉ cập nhật biểu đồ nếu giá trị hợp lệ
+            if (data.temperature !== null && data.humidity !== null && data.light !== null) {
+                sensorChart.data.labels.push(timeLabel);
+                sensorChart.data.datasets[0].data.push(data.temperature);
+                sensorChart.data.datasets[1].data.push(data.humidity);
+                sensorChart.data.datasets[2].data.push(data.light);
+
+                if (sensorChart.data.labels.length > 10) {
+                    sensorChart.data.labels.shift();
+                    sensorChart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+
+                sensorChart.update();
+            }
+        }
+
+        // Update slider state
+        function updateSlider(deviceId, level) {
+            const slider = document.getElementById(`${deviceId}Slider`);
+            const levelDisplay = document.getElementById(`${deviceId}Level`);
+            const container = document.getElementById(`${deviceId}Container`);
+            const status = document.getElementById(`${deviceId}Status`);
+            
+            if (slider && levelDisplay && container && status) {
+                if (level === null) {
+                    // Thiết bị bị ngắt kết nối
+                    container.style.opacity = '0.5';
+                    slider.disabled = true;
+                    levelDisplay.style.display = 'none';
+                    status.style.display = 'block';
+                } else {
+                    // Thiết bị đang kết nối
+                    container.style.opacity = '1';
+                    slider.disabled = false;
+                    slider.value = level;
+                    levelDisplay.style.display = 'block';
+                    levelDisplay.textContent = `Level: ${level}`;
+                    status.style.display = 'none';
+                }
+            }
+        }
+
+        // Update UI for mode
+        function updateUIForMode(mode) {
+            const autoBtn = document.getElementById('autoBtn');
+            const deviceSliders = ['light', 'fan', 'ac'].map(d => `${d}Slider`);
+            
+            autoBtn.textContent = mode === 'sensor' ? 'Turn OFF' : 'Turn ON';
+            autoBtn.classList.remove(mode === 'sensor' ? 'btn-primary' : 'btn-danger');
+            autoBtn.classList.add(mode === 'sensor' ? 'btn-danger' : 'btn-primary');
+            
+            deviceSliders.forEach(sliderId => {
+                const slider = document.getElementById(sliderId);
+                if (slider) {
+                    slider.disabled = mode === 'sensor';
+                    slider.style.opacity = mode === 'sensor' ? '0.5' : '1';
+                }
+            });
+        }
+
+        // Update device control sliders
+        ['light', 'fan', 'ac'].forEach(device => {
+            const slider = document.getElementById(`${device}Slider`);
+            if (slider) {
+                slider.oninput = (e) => {
+                    const roomId = document.getElementById('roomSelector').value;
+                    db.ref(`/rooms/${roomId}/controls/mode`).once('value')
+                        .then((snapshot) => {
+                            if (snapshot.val() === 'manual') {
+                                const level = parseInt(e.target.value);
+                                db.ref(`/rooms/${roomId}/controls/deviceLevels/${device}`).set(level);
+                            } else {
+                                alert('Please switch to Manual mode first');
+                                db.ref(`/rooms/${roomId}/controls/deviceLevels/${device}`).once('value')
+                                    .then((levelSnapshot) => {
+                                        updateSlider(device, levelSnapshot.val() || 0);
+                                    });
+                            }
+                        });
+                };
+            }
+        });
+
+        // Update auto mode button
+        document.getElementById('autoBtn').onclick = () => {
+            const roomId = document.getElementById('roomSelector').value;
+            db.ref(`/rooms/${roomId}/controls/mode`).once('value')
+                .then((snapshot) => {
+                    const currentMode = snapshot.val() || 'manual';
+                    const newMode = currentMode === 'manual' ? 'sensor' : 'manual';
+                    
+                    db.ref(`/rooms/${roomId}/controls`).set({
+                        mode: newMode,
+                        deviceLevels: {
+                            light: 0,
+                            fan: 0,
+                            ac: 0
+                        }
+                    });
+                });
+        };
+        
+        // Show device management button for admin
+        if (localStorage.getItem('userRole') === 'user') {
+            document.getElementById('deviceManageBtn').style.display = 'inline-block';
+        }
+
+        // Hàm tạo card điều khiển cho thiết bị
+        function createDeviceCard(deviceId, deviceData) {
+            const card = document.createElement('div');
+            card.className = 'col-md-4 mb-3';
+            const deviceName = deviceId.charAt(0).toUpperCase() + deviceId.slice(1);
+            
+            card.innerHTML = `
+                <div class="card device-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">${deviceName}</h5>
+                        <div id="${deviceId}Container">
+                            <input type="range" id="${deviceId}Slider" class="form-range mb-2" 
+                                min="0" max="4" value="0">
+                            <div class="d-flex justify-content-between">
+                                <small>Off</small>
+                                <small>25%</small>
+                                <small>50%</small>
+                                <small>75%</small>
+                                <small>100%</small>
+                            </div>
+                            <div id="${deviceId}Level" class="mt-2">Level: 0</div>
+                            <div id="${deviceId}Status" class="mt-2 text-danger" style="display: none;">
+                                Device Disconnected
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return card;
+        }
+
+        // Hàm cập nhật mức độ thiết bị
+        function updateDeviceLevel(roomId, deviceId, level) {
+            db.ref(`/rooms/${roomId}/controls/mode`).once('value')
+                .then((snapshot) => {
+                    if (snapshot.val() === 'manual') {
+                        db.ref(`/rooms/${roomId}/controls/deviceLevels/${deviceId}`).set(parseInt(level));
+                    } else {
+                        alert('Please switch to Manual mode first');
+                        // Reset slider to current value
+                        db.ref(`/rooms/${roomId}/controls/deviceLevels/${deviceId}`).once('value')
+                            .then((levelSnapshot) => {
+                                updateSlider(deviceId, levelSnapshot.val() || 0);
+                            });
+                    }
+                });
+        }
+
+        // Hàm toggle chế độ tự động
+        function toggleAutoMode() {
+            const roomId = document.getElementById('roomSelector').value;
+            db.ref(`/rooms/${roomId}/controls/mode`).once('value')
+                .then((snapshot) => {
+                    const currentMode = snapshot.val() || 'manual';
+                    const newMode = currentMode === 'manual' ? 'sensor' : 'manual';
+                    
+                    // Reset all device levels when switching modes
+                    db.ref(`/rooms/${roomId}/devices`).once('value')
+                        .then((devicesSnapshot) => {
+                            const devices = devicesSnapshot.val() || {};
+                            const deviceLevels = {};
+                            
+                            // Only set levels for connected devices
+                            Object.entries(devices).forEach(([deviceId, deviceData]) => {
+                                if (deviceData.pin !== undefined) {
+                                    deviceLevels[deviceId] = 0;
+                                }
+                            });
+                            
+                            db.ref(`/rooms/${roomId}/controls`).set({
+                                mode: newMode,
+                                deviceLevels: deviceLevels
+                            });
+                        });
+                });
+        }
+
+        // Thêm kiểm tra role để hiển thị các nút quản lý
+        function updateNavButtons() {
+            const userRole = localStorage.getItem('userRole');
+            const userManageBtn = document.getElementById('userManageBtn');
+            const roomManageBtn = document.getElementById('roomManageBtn');
+            
+            if (userRole === 'admin') {
+                userManageBtn.style.display = 'inline-block';
+                roomManageBtn.style.display = 'inline-block';
+            } else {
+                userManageBtn.style.display = 'none';
+                roomManageBtn.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

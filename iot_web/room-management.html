@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Room Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Room Management</h1>
+        
+        <!-- Navigation -->
+        <nav class="mb-4">
+            <a href="dashboard.html" class="btn btn-outline-primary me-2">Dashboard</a>
+            <a href="devices.html" class="btn btn-outline-primary me-2">Devices</a>
+            <a href="user-management.html" class="btn btn-outline-primary me-2">Users</a>
+            <button id="logoutBtn" class="btn btn-outline-danger float-end">Logout</button>
+        </nav>
+
+        <!-- Add Room Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add New Room</h5>
+                <form id="addRoomForm">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="roomName" placeholder="Room Name" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">Add Room</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Room List -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Room List</h5>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Room Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomList">
+                            <!-- Rooms will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Room Modal -->
+        <div class="modal fade" id="editRoomModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Room</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editRoomForm">
+                            <input type="hidden" id="editRoomId">
+                            <div class="mb-3">
+                                <label>Room Name</label>
+                                <input type="text" class="form-control" id="editRoomName" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" onclick="updateRoom()">Save changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <script>
+        // Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBkK6-57rXAPSyUBZ3Ug-9E6o2XlJyxMes",
+            authDomain: "iot-smart-home-a9896.firebaseapp.com",
+            databaseURL: "https://iot-smart-home-a9896-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "iot-smart-home-a9896",
+            storageBucket: "iot-smart-home-a9896.firebasestorage.app",
+            messagingSenderId: "282792013922",
+            appId: "1:282792013922:web:619668c4c6412d02cae13b"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Check authentication
+        function checkAuth() {
+            const userId = localStorage.getItem('userId');
+            const userRole = localStorage.getItem('userRole');
+            if (!userId || userRole !== 'admin') {
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        }
+
+        // Load rooms
+        async function loadRooms() {
+            const roomList = document.getElementById('roomList');
+            try {
+                const snapshot = await db.ref('rooms').once('value');
+                const rooms = snapshot.val() || {};
+                
+                roomList.innerHTML = '';
+                for (const roomId in rooms) {
+                    const room = rooms[roomId];
+                    roomList.innerHTML += `
+                        <tr>
+                            <td>${room.name}</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary me-2" onclick="editRoom('${roomId}')">Edit</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteRoom('${roomId}')">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+
+        // Add room
+        document.getElementById('addRoomForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const roomName = document.getElementById('roomName').value.toLowerCase(); // chuyển thành chữ thường
+            
+            try {
+                // Thay vì dùng push(), chúng ta sẽ set trực tiếp với key là tên room
+                await db.ref(`rooms/${roomName}`).set({
+                    name: roomName,
+                    controls: {
+                        mode: "manual"
+                    }
+                });
+                
+                document.getElementById('roomName').value = '';
+                loadRooms();
+            } catch (error) {
+                console.error('Error adding room:', error);
+                alert('Error adding room: ' + error.message);
+            }
+        };
+
+        // Edit room
+        async function editRoom(roomId) {
+            try {
+                const snapshot = await db.ref(`rooms/${roomId}`).once('value');
+                const room = snapshot.val();
+                
+                document.getElementById('editRoomId').value = roomId;
+                document.getElementById('editRoomName').value = room.name;
+                
+                new bootstrap.Modal(document.getElementById('editRoomModal')).show();
+            } catch (error) {
+                console.error('Error loading room:', error);
+                alert('Error loading room details');
+            }
+        }
+
+        // Update room
+        async function updateRoom() {
+            const roomId = document.getElementById('editRoomId').value;
+            const roomName = document.getElementById('editRoomName').value;
+            
+            try {
+                await db.ref(`rooms/${roomId}`).update({
+                    name: roomName
+                });
+                
+                bootstrap.Modal.getInstance(document.getElementById('editRoomModal')).hide();
+                loadRooms();
+            } catch (error) {
+                console.error('Error updating room:', error);
+                alert('Error updating room');
+            }
+        }
+
+        // Delete room
+        async function deleteRoom(roomId) {
+            if (confirm('Are you sure you want to delete this room? This will also remove all user access to this room.')) {
+                try {
+                    // Delete room
+                    await db.ref(`rooms/${roomId}`).remove();
+                    
+                    // Remove room access from all users
+                    const usersSnapshot = await db.ref('users').once('value');
+                    const users = usersSnapshot.val() || {};
+                    
+                    for (const userId in users) {
+                        if (users[userId].rooms && users[userId].rooms[roomId]) {
+                            await db.ref(`users/${userId}/rooms/${roomId}`).remove();
+                        }
+                    }
+                    
+                    loadRooms();
+                } catch (error) {
+                    console.error('Error deleting room:', error);
+                    alert('Error deleting room');
+                }
+            }
+        }
+
+        // Logout
+        document.getElementById('logoutBtn').onclick = () => {
+            localStorage.clear();
+            window.location.href = 'login.html';
+        };
+
+        // Initialize
+        if (checkAuth()) {
+            loadRooms();
+        }
+    </script>
+</body>
+</html>
